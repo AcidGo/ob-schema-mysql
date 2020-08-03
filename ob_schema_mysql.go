@@ -5,6 +5,7 @@ import (
     "flag"
     "fmt"
     "log"
+    "io"
     "io/ioutil"
     "os"
     "path"
@@ -20,9 +21,10 @@ const (
     RE_REPLICA_NUM = " REPLICA_NUM\\s*=\\s*\\d+"
     RE_PRIMARY_ZONE = " PRIMARY_ZONE\\s*=\\s*'\\S+'"
     RE_BLOCK_SIZE = " BLOCK_SIZE\\s*=?\\s*\\d+"
-    RE_USE_BLOOM_FILETER = "PCTFREE\\s*=\\s*\\d"
+    RE_USE_BLOOM_FILETER = " USE_BLOOM_FILETER\\s*\\S+"
+    RE_PCTFREE = "PCTFREE\\s*=\\s*\\d+"
 
-    RE_TABLE_START = "^\\s*CREATE\s+TABLE\\s+.*?$"
+    RE_TABLE_START = "^\\s*CREATE\\s+TABLE\\s+.*?$"
     RE_TABLE_END = "^\\s*^(?!/\\*).*;\\s*$"
 
     RE_CALC_1 = "`\\S+`\\s*(TINYINT|YEAR)(\\(|\\s).*?$"
@@ -48,6 +50,7 @@ const (
     APP_TEMPDIR_PRENAME = "_tempdir_"
     APP_TABLE_SCHEMA_GLOB = "*-schema.sql"
     APP_DATABASE_SCHEMA_GLOB = "*-schema-create.sql"
+    APP_SWAP_SUFFIX = "._swap"
 )
 
 const (
@@ -78,15 +81,15 @@ var (
 
 var (
     patternCalc_1   *regexp.Regexp
-    patternCalc_2
-    patternCalc_3
-    patternCalc_4
-    patternCalc_8
-    patternCalc_N
-    patternCalc_M
-    patternCalc_VARCHAR_11
-    patternCalc_VARCHAR_111
-    patternCalc_VARCHAR_1111
+    patternCalc_2   *regexp.Regexp
+    patternCalc_3   *regexp.Regexp
+    patternCalc_4   *regexp.Regexp
+    patternCalc_8   *regexp.Regexp
+    patternCalc_N   *regexp.Regexp
+    patternCalc_M   *regexp.Regexp
+    patternCalc_VARCHAR_11      *regexp.Regexp
+    patternCalc_VARCHAR_111     *regexp.Regexp
+    patternCalc_VARCHAR_1111    *regexp.Regexp
 )
 
 func flagUsage() {
@@ -105,6 +108,27 @@ func IsDir(path string) bool {
         return false
     }
     return s.IsDir()
+}
+
+func IsEmptyDir(path string) bool {
+    dir, err := ioutil.ReadDir(path)
+    return len(dir) == 0 && err == nil
+}
+
+func GetFilesFromDir(path string) ([]string, error) {
+    var files []string
+    pathSep := string(os.PathSeparator)
+    fiLst, err := ioutil.ReadDir(path)
+    if err != nil {
+        return nil, err
+    }
+
+    for _, fi := range fiLst {
+        if !fi.IsDir() {
+            files = append(files, path+pathSep+fi.Name())
+        }
+    }
+    return files, nil
 }
 
 func GetMaxIndex(lst []int) int {
@@ -143,7 +167,42 @@ func MoveFile(sourcePath string, destPath string) error {
     return nil
 }
 
-func ConvSchemaFile(smFileS string, smFileD string) error {
+func SwapDirFiles(dirS string, dirD string) error {
+    filesS, err := GetFilesFromDir(dirS)
+    if err != nil {
+        return err
+    }
+    filesD, err := GetFilesFromDir(dirD)
+    if err != nil {
+        return err
+    }
+
+    for _, fileD := range filesD {
+        baseName := filepath.Base(fileD)
+        err = MoveFile(fileD, path.Join(dirS, baseName+APP_SWAP_SUFFIX))
+        if err != nil {
+            return err
+        }
+    }
+    for _, fileS := range filesS {
+        baseName := filepath.Base(fileS)
+        err = MoveFile(fileS, path.Join(dirD, baseName))
+        if err != nil {
+            return err
+        }
+    }
+    for _, fileD := range filesD {
+        baseName := filepath.Base(fileD)
+        err = MoveFile(path.Join(dirS, baseName+APP_SWAP_SUFFIX), path.Join(dirS, baseName))
+        if err != nil {
+            return err
+        }
+    }
+
+    return nil
+}
+
+func ConvTBSchemaFile(smFileS string, smFileD string) error {
     fileS, err := os.Open(smFileS)
     if err != nil {
         return err
@@ -156,17 +215,20 @@ func ConvSchemaFile(smFileS string, smFileD string) error {
     }
     schemaS := string(dataS)
 
-    schemaS, err = deleteTerm(schemaS)
+    schemaS, err = deleteTBTerm(schemaS)
     if err != nil {
         return err
     }
-    schemaS, err = deleteKey(schemaS)
+    schemaS, err = deleteTBKey(schemaS)
     if err != nil {
         return err
     }
-    lineSize := calcLineSize(schemaS)
+    lineSize, err := calcTBLineSize(schemaS)
+    if err != nil {
+        return err
+    }
     if lineSize > MYSQL_LINE_MAX_SIZE {
-        schemaS, err = convSchemaLineSize(schemaS, MYSQL_LINE_MAX_SIZE)
+        schemaS, err = convTBSchemaLineSize(schemaS, MYSQL_LINE_MAX_SIZE)
         if err != nil {
             return err
         }
@@ -180,58 +242,83 @@ func ConvSchemaFile(smFileS string, smFileD string) error {
     return nil
 }
 
-func deleteTerm(schema string) (string, error) {
-    for reK, reV := range termDeleteREMap {
+func ConvDBSchemaFile(smFileS string, smFileD string) error {
+    return nil
+}
+
+func deleteTBTerm(schema string) (string, error) {
+    for _, reV := range termDeleteREMap {
         schema = reV.ReplaceAllString(schema, "")
     }
     return schema, nil
 }
 
-func deleteKey(schema string) (string, error) {
-    for reK, reV := range keyDeleteREMap {
+func deleteTBKey(schema string) (string, error) {
+    for _, reV := range keyDeleteREMap {
         schema = reV.ReplaceAllString(schema, "")
     }
     return schema, nil
 }
 
-func calcLineSize(schema string) int {
+func calcTBLineSize(schema string) (int, error) {
     lineSize := 0
-    lineSize = lineSize + len(patternCalc_1.FindAllStringIndex(schema), -1)*1
-    lineSize = lineSize + len(patternCalc_2.FindAllStringIndex(schema), -1)*2
-    lineSize = lineSize + len(patternCalc_3.FindAllStringIndex(schema), -1)*3
-    lineSize = lineSize + len(patternCalc_4.FindAllStringIndex(schema), -1)*4
-    lineSize = lineSize + len(patternCalc_8.FindAllStringIndex(schema), -1)*8
+    lineSize = lineSize + len(patternCalc_1.FindAllStringIndex(schema, -1))*1
+    lineSize = lineSize + len(patternCalc_2.FindAllStringIndex(schema, -1))*2
+    lineSize = lineSize + len(patternCalc_3.FindAllStringIndex(schema, -1))*3
+    lineSize = lineSize + len(patternCalc_4.FindAllStringIndex(schema, -1))*4
+    lineSize = lineSize + len(patternCalc_8.FindAllStringIndex(schema, -1))*8
 
     // for variable length field
-    _tmp := patternCalc_N.FindStringSubmatch(schema)
+    _tmp := patternCalc_N.FindAllStringSubmatch(schema, -1)
     for _, val := range _tmp {
         switch strings.ToUpper(val[1]) {
         case "CHAR":
-            lineSize = lineSize + strconv.Atoi(val[2])*MYSQL_CHAR_BYTE
-        case "VARCHAR": 
-            lineSize = lineSize + strconv.Atoi(val[2])*MYSQL_VARCHAR_BYTE
+            _t, err := strconv.Atoi(val[2])
+            if err != nil {
+                return 0, err
+            }
+            lineSize = lineSize + _t*MYSQL_CHAR_BYTE
+        case "VARCHAR":
+            _t, err := strconv.Atoi(val[2])
+            if err != nil {
+                return 0, err
+            }
+            lineSize = lineSize + _t*MYSQL_VARCHAR_BYTE
         default:
             log.Fatalf("not case the variable length field for %s", val[1])
         }
     }
 
-    return lineSize
+    return lineSize, nil
 }
 
-func convSchemaLineSize(schema stirng, maxSize int) (string, error) {
-    schema := patternCalc_VARCHAR_1111.ReplaceAllString(schema, " TEXT")
-    if calcLineSize(schema) < maxSize {
+func convTBSchemaLineSize(schema string, maxSize int) (string, error) {
+    schema = patternCalc_VARCHAR_1111.ReplaceAllString(schema, " TEXT")
+    _lineSize, err := calcTBLineSize(schema)
+    if err != nil {
+        return "", err
+    }
+    if _lineSize < maxSize {
         return schema, nil
     }
-    schema := patternCalc_VARCHAR_111.ReplaceAllString(schema, " TEXT")
-    if calcLineSize(schema) < maxSize {
+    schema = patternCalc_VARCHAR_111.ReplaceAllString(schema, " TEXT")
+    _lineSize, err = calcTBLineSize(schema)
+    if err != nil {
+        return "", err
+    }
+    if _lineSize < maxSize {
         return schema, nil
     }
-    schema := patternCalc_VARCHAR_11.ReplaceAllString(schema, " TEXT")
-    if calcLineSize(schema) < maxSize {
+    schema = patternCalc_VARCHAR_11.ReplaceAllString(schema, " TEXT")
+    _lineSize, err = calcTBLineSize(schema)
+    if err != nil {
+        return "", err
+    }
+    if _lineSize < maxSize {
         return schema, nil
     }
-    return "", errors.New("cannot conver the schema line size")
+
+    return schema, errors.New("cannot conver the schema line size")
 }
 
 func initFlag() {
@@ -274,6 +361,8 @@ func initRE() {
     termDeleteREMap["PRIMARY_ZONE"] = regexp.MustCompile(RE_PRIMARY_ZONE)
     // for BLOCK_SIZE
     termDeleteREMap["BLOCK_SIZE"] = regexp.MustCompile(RE_BLOCK_SIZE)
+    // for USE_BLOOM_FILETER
+    termDeleteREMap["USE_BLOOM_FILETER"] = regexp.MustCompile(RE_USE_BLOOM_FILETER)
     // for PCTFREE
     termDeleteREMap["PCTFREE"] = regexp.MustCompile(RE_PCTFREE)
 
@@ -342,6 +431,18 @@ func main() {
     }
 
     if flagDeal {
+        recoverPath := path.Join(workPath, APP_ORIGINAL_FOLDER)
+        if IsDir(recoverPath) {
+            if !IsEmptyDir(recoverPath) {
+                log.Fatal("the recover dir must be empty")
+            }
+        } else {
+            err := os.Mkdir(recoverPath, os.ModePerm)
+            if err != nil {
+                log.Fatal(err)
+            }
+        }
+
         tempDir, err := ioutil.TempDir(workPath, APP_TEMPDIR_PRENAME)
         if err != nil {
             log.Fatal(err)
@@ -355,16 +456,72 @@ func main() {
         }
         for _, tbSMFile := range tbSMFiles {
             tbSMFileD := path.Join(tempPath, tbSMFile)
-            err := ConvSchemaFile(tbSMFile, tbSMFileD)
+            err := ConvTBSchemaFile(tbSMFile, tbSMFileD)
             if err != nil {
                 log.Fatal(err)
             }
         }
-        for _, tbSMFile := range tbSMFiles {
-            
-        }
 
         // do for database schema
+        dbSMFiles, err := filepath.Glob(path.Join(workPath, APP_DATABASE_SCHEMA_GLOB))
+        if err != nil {
+            log.Fatal(err)
+        }
+        for _, dbSMFile := range dbSMFiles {
+            dbSMFileD := path.Join(tempPath, dbSMFile)
+            err := ConvDBSchemaFile(dbSMFile, dbSMFileD)
+            if err != nil {
+                log.Fatal(err)
+            }
+        }
 
+        // move the original schema files to recovery dir
+        for _, tbSMFile := range tbSMFiles {
+            baseName := filepath.Base(tbSMFile)
+            fileD := path.Join(recoverPath, baseName)
+            err := MoveFile(tbSMFile, fileD)
+            if err != nil {
+                log.Fatal(err)
+            }
+        }
+        for _, dbSMFile := range dbSMFiles {
+            baseName := filepath.Base(dbSMFile)
+            fileD := path.Join(recoverPath, baseName)
+            err := MoveFile(dbSMFile, fileD)
+            if err != nil {
+                log.Fatal(err)
+            }
+        }
+
+        // move the cooked schema files to original dir
+        for _, tbSMFile := range tbSMFiles {
+            baseName := filepath.Base(tbSMFile)
+            fileS := path.Join(tempDir, baseName)
+            err := MoveFile(fileS, tbSMFile)
+            if err != nil {
+                log.Fatal(err)
+            }
+        }
+        for _, dbSMFile := range tbSMFiles {
+            baseName := filepath.Base(dbSMFile)
+            fileS := path.Join(tempDir, baseName)
+            err := MoveFile(fileS, dbSMFile)
+            if err != nil {
+                log.Fatal(err)
+            }
+        }
+
+        // remove tempdir
+        if IsEmptyDir(tempDir) {
+            err := os.Remove(tempDir)
+            if err != nil {
+                log.Fatal(err)
+            }
+        } else {
+            log.Printf("the tempdir %s is not empty, not remove it, please check", tempDir)
+        }
+
+        log.Println("done for all jobs")
+        os.Exit(APP_EC_SUCCESS)
     }
 }
