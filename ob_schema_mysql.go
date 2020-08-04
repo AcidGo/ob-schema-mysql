@@ -25,7 +25,7 @@ const (
     RE_PCTFREE = "PCTFREE\\s*=\\s*\\d+"
     RE_TABLET_SIZE = " TABLET_SIZE\\s*=\\s*\\d+"
     RE_AUTO_INCREMENT_N = "(?im) AUTO_INCREMENT\\s*=\\s*\\d+"
-    RE_AUTO_INCREMENT = "(?im)\\s*AUTO_INCREMENT\\s*"
+    RE_AUTO_INCREMENT = "(?im)AUTO_INCREMENT\\s*"
 
     RE_TABLE_START = "^\\s*CREATE\\s+TABLE\\s+.*?$"
     RE_TABLE_END = "^\\s*^(?!/\\*).*;\\s*$"
