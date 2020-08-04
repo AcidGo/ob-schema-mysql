@@ -101,13 +101,14 @@ var (
 )
 
 func flagUsage() {
-    fmt.Fprintf(os.Stderr, `ob_schema_mysql version: %s/%s,
+    fmt.Fprintf(os.Stderr, `ob_schema_mysql:
+    version: %s/%s
     author: %s
     gitCommit: %s
     buildTime: %s
 Usage: %s [-h] [-d schema-dir] [-r schema-dir]
-Options:`, appName, appVersion, appAuthor, appGitCommitHash, appName, appBuildTime)
-
+Options:`, appName, appVersion, appAuthor, appGitCommitHash, appBuildTime, appName)
+    fmt.Fprintf(os.Stderr, "\n")
     flag.PrintDefaults()
 }
 
@@ -463,6 +464,12 @@ func init() {
 
 
 func main() {
+    appName = ""
+    appVersion = ""
+    appAuthor = ""
+    appGitCommitHash = ""
+    appBuildTime = ""
+
     if flagRecovery {
         recoverPath := path.Join(workPath, APP_ORIGINAL_FOLDER)
 
