@@ -386,7 +386,7 @@ func convTBSchemaLineSize(schema string, maxSize int) (string, error) {
 
 func initFlag() {
     flag.BoolVar(&flagHelp, "h", false, "show for help")
-    flag.BoolVar(&flagDeal, "d", true, "deal with schema file from mydumper/mydumper_ac")
+    flag.BoolVar(&flagDeal, "d", false, "deal with schema file from mydumper/mydumper_ac")
     flag.BoolVar(&flagRecovery, "r", false, fmt.Sprintf("recover original schema file from %s", APP_ORIGINAL_FOLDER))
 
     flag.Usage = flagUsage
