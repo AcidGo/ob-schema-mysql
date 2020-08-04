@@ -83,6 +83,7 @@ var (
     appAuthor           string
     appVersion          string
     appGitCommitHash    string
+    appBuildTime        string
 )
 
 var (
@@ -103,8 +104,9 @@ func flagUsage() {
     fmt.Fprintf(os.Stderr, `ob_schema_mysql version: %s/%s,
     author: %s
     gitCommit: %s
+    buildTime: %s
 Usage: %s [-h] [-d schema-dir] [-r schema-dir]
-Options:`, appName, appVersion, appAuthor, appGitCommitHash, appName)
+Options:`, appName, appVersion, appAuthor, appGitCommitHash, appName, appBuildTime)
 
     flag.PrintDefaults()
 }
@@ -245,7 +247,6 @@ func ConvTBSchemaFile(smFileS string, smFileD string) error {
     if err != nil {
         return err
     }
-    log.Println(schemaS)
 
     err = ioutil.WriteFile(smFileD, []byte(schemaS), 0666)
     if err != nil {
@@ -335,7 +336,7 @@ func calcTBLineSize(schema string) (int, error) {
             log.Fatalf("not case the variable length field for %s", val[1])
         }
     }
-    log.Println(lineSize)
+
     return lineSize, nil
 }
 
@@ -350,8 +351,6 @@ func convTBSchemaLineSize(schema string, maxSize int) (string, error) {
     }
 
     schema = patternCalc_VARCHAR_1111.ReplaceAllString(schema, " TEXT")
-    log.Println(patternCalc_VARCHAR_1111)
-    log.Println(schema)
     _lineSize, err = calcTBLineSize(schema)
     if err != nil {
         return "", err
