@@ -43,6 +43,7 @@ const (
     RE_CALC_VARCHAR_11111   = "(?im)\\s*VARCHAR\\s*\\(\\s*(\\d{5,})\\s*\\)"
 
     RE_KEY_PRIMARY = "(?m)\\s*PRIMARY\\sKEY\\s*.*?$"
+    RE_KEY_FOREIGN = "(?m)\\s*.*?FOREIGN KEY.*?$"
     RE_KEY_KEY = "(?m)\\s*KEY(\\s|\\().*?$"
     RE_KEY_UNIQUE = "(?m)\\s*UNIQUE KEY\\s*.*?$"
 
@@ -435,6 +436,8 @@ func initRE() {
 
     // for PRIMARY KEY
     keyDeleteREList = append(keyDeleteREList, regexp.MustCompile(RE_KEY_PRIMARY))
+    // for FOREIGN KEY
+    keyDeleteREList = append(keyDeleteREList, regexp.MustCompile(RE_KEY_FOREIGN))
     // for UNIQUE KEY
     keyDeleteREList = append(keyDeleteREList, regexp.MustCompile(RE_KEY_UNIQUE))
     // for INDEX KEY
