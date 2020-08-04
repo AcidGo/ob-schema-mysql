@@ -24,6 +24,8 @@ const (
     RE_USE_BLOOM_FILETER = " USE_BLOOM_FILTER\\s*=\\s*\\S+"
     RE_PCTFREE = "PCTFREE\\s*=\\s*\\d+"
     RE_TABLET_SIZE = " TABLET_SIZE\\s*=\\s*\\d+"
+    RE_AUTO_INCREMENT_N = "(?im) AUTO_INCREMENT\\s*=\\s*\\d+"
+    RE_AUTO_INCREMENT = "(?im)\\s*AUTO_INCREMENT\\s*"
 
     RE_TABLE_START = "^\\s*CREATE\\s+TABLE\\s+.*?$"
     RE_TABLE_END = "^\\s*^(?!/\\*).*;\\s*$"
@@ -41,7 +43,7 @@ const (
     RE_CALC_VARCHAR_11111   = "(?im)\\s*VARCHAR\\s*\\(\\s*(\\d{5,})\\s*\\)"
 
     RE_KEY_PRIMARY = "(?m)\\s*PRIMARY\\sKEY\\s*.*?$"
-    RE_KEY_KEY = "(?m)\\s*KEY\\s*.*?$"
+    RE_KEY_KEY = "(?m)\\s*KEY(\\s|\\().*?$"
     RE_KEY_UNIQUE = "(?m)\\s*UNIQUE KEY\\s*.*?$"
 
     RE_TABLE_COMMA_LIMIT = "(,)(\\n*\\s*\\).*?;)"
@@ -74,7 +76,7 @@ var (
 
     workPath    string
 
-    termTBDeleteREMap   map[string]*regexp.Regexp
+    termTBDeleteREList  []*regexp.Regexp
     termDBDeleteREMap   map[string]*regexp.Regexp
     keyDeleteREList     []*regexp.Regexp
     commaTBRE           *regexp.Regexp
@@ -284,7 +286,7 @@ func ConvDBSchemaFile(smFileS string, smFileD string) error {
 }
 
 func deleteTBTerm(schema string) (string, error) {
-    for _, reV := range termTBDeleteREMap {
+    for _, reV := range termTBDeleteREList {
         schema = reV.ReplaceAllString(schema, "")
     }
     return schema, nil
@@ -410,23 +412,26 @@ func initFlag() {
 }
 
 func initRE() {
-    termTBDeleteREMap = make(map[string]*regexp.Regexp)
     // for ROW_FORMAT
-    termTBDeleteREMap["ROW_FORMAT"] = regexp.MustCompile(RE_ROW_FORMAT)
+    termTBDeleteREList = append(termTBDeleteREList, regexp.MustCompile(RE_ROW_FORMAT))
     // for COMPRESSION
-    termTBDeleteREMap["COMPRESSION"] = regexp.MustCompile(RE_COMPRESSION)
+    termTBDeleteREList = append(termTBDeleteREList, regexp.MustCompile(RE_COMPRESSION))
     // for REPLICA_NUM
-    termTBDeleteREMap["REPLICA_NUM"] = regexp.MustCompile(RE_REPLICA_NUM)
+    termTBDeleteREList = append(termTBDeleteREList, regexp.MustCompile(RE_REPLICA_NUM))
     // for PRIMARY_ZONE
-    termTBDeleteREMap["PRIMARY_ZONE"] = regexp.MustCompile(RE_PRIMARY_ZONE)
+    termTBDeleteREList = append(termTBDeleteREList, regexp.MustCompile(RE_PRIMARY_ZONE))
     // for BLOCK_SIZE
-    termTBDeleteREMap["BLOCK_SIZE"] = regexp.MustCompile(RE_BLOCK_SIZE)
+    termTBDeleteREList = append(termTBDeleteREList, regexp.MustCompile(RE_BLOCK_SIZE))
     // for USE_BLOOM_FILETER
-    termTBDeleteREMap["USE_BLOOM_FILETER"] = regexp.MustCompile(RE_USE_BLOOM_FILETER)
+    termTBDeleteREList = append(termTBDeleteREList, regexp.MustCompile(RE_USE_BLOOM_FILETER))
     // for PCTFREE
-    termTBDeleteREMap["PCTFREE"] = regexp.MustCompile(RE_PCTFREE)
+    termTBDeleteREList = append(termTBDeleteREList, regexp.MustCompile(RE_PCTFREE))
     // for TABLE_SIZE
-    termTBDeleteREMap["RE_TABLET_SIZE"] = regexp.MustCompile(RE_TABLET_SIZE)
+    termTBDeleteREList = append(termTBDeleteREList, regexp.MustCompile(RE_TABLET_SIZE))
+    // for AUTO_INCREMENT col
+    termTBDeleteREList = append(termTBDeleteREList, regexp.MustCompile(RE_AUTO_INCREMENT_N))
+    // for AUTO_INCREMENT
+    termTBDeleteREList = append(termTBDeleteREList, regexp.MustCompile(RE_AUTO_INCREMENT))
 
     // for PRIMARY KEY
     keyDeleteREList = append(keyDeleteREList, regexp.MustCompile(RE_KEY_PRIMARY))
