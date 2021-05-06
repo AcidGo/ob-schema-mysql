@@ -16,16 +16,17 @@ import (
 )
 
 const (
-    RE_ROW_FORMAT = " ROW_FORMAT\\s*=\\s*\\w+"
-    RE_COMPRESSION = " COMPRESSION\\s*=\\s*'\\S+'"
-    RE_REPLICA_NUM = " REPLICA_NUM\\s*=\\s*\\d+"
-    RE_PRIMARY_ZONE = " PRIMARY_ZONE\\s*=\\s*'\\S+'"
-    RE_BLOCK_SIZE = " BLOCK_SIZE\\s*=?\\s*\\d+"
-    RE_USE_BLOOM_FILETER = " USE_BLOOM_FILTER\\s*=\\s*\\S+"
-    RE_PCTFREE = "PCTFREE\\s*=\\s*\\d+"
-    RE_TABLET_SIZE = " TABLET_SIZE\\s*=\\s*\\d+"
-    RE_AUTO_INCREMENT_N = "(?im) AUTO_INCREMENT\\s*=\\s*\\d+"
-    RE_AUTO_INCREMENT = "(?im)AUTO_INCREMENT\\s*"
+    RE_ROW_FORMAT           = " ROW_FORMAT\\s*=\\s*\\w+"
+    RE_COMPRESSION          = " COMPRESSION\\s*=\\s*'\\S+'"
+    RE_REPLICA_NUM          = " REPLICA_NUM\\s*=\\s*\\d+"
+    RE_PRIMARY_ZONE         = " PRIMARY_ZONE\\s*=\\s*'\\S+'"
+    RE_BLOCK_SIZE           = " BLOCK_SIZE\\s*=?\\s*\\d+"
+    RE_USE_BLOOM_FILETER    = " USE_BLOOM_FILTER\\s*=\\s*\\S+"
+    RE_PCTFREE              = "PCTFREE\\s*=\\s*\\d+"
+    RE_TABLET_SIZE          = " TABLET_SIZE\\s*=\\s*\\d+"
+    RE_AUTO_INCREMENT_N     = "(?im) AUTO_INCREMENT\\s*=\\s*\\d+"
+    RE_AUTO_INCREMENT       = "(?im)AUTO_INCREMENT\\s*"
+    RE_LOCALITY             = " LOCALITY\\s*=\\s*'.*?'"
 
     RE_TABLE_START = "^\\s*CREATE\\s+TABLE\\s+.*?$"
     RE_TABLE_END = "^\\s*^(?!/\\*).*;\\s*$"
@@ -386,7 +387,7 @@ func convTBSchemaLineSize(schema string, maxSize int) (string, error) {
 
 func initFlag() {
     flag.BoolVar(&flagHelp, "h", false, "show for help")
-    flag.BoolVar(&flagDeal, "d", true, "deal with schema file from mydumper/mydumper_ac")
+    flag.BoolVar(&flagDeal, "d", false, "deal with schema file from mydumper/mydumper_ac")
     flag.BoolVar(&flagRecovery, "r", false, fmt.Sprintf("recover original schema file from %s", APP_ORIGINAL_FOLDER))
 
     flag.Usage = flagUsage
@@ -433,6 +434,8 @@ func initRE() {
     termTBDeleteREList = append(termTBDeleteREList, regexp.MustCompile(RE_AUTO_INCREMENT_N))
     // for AUTO_INCREMENT
     termTBDeleteREList = append(termTBDeleteREList, regexp.MustCompile(RE_AUTO_INCREMENT))
+    // for LOCALITY (ocp 2.5.2+)
+    termTBDeleteREList = append(termTBDeleteREList, regexp.MustCompile(RE_LOCALITY))
 
     // for PRIMARY KEY
     keyDeleteREList = append(keyDeleteREList, regexp.MustCompile(RE_KEY_PRIMARY))
